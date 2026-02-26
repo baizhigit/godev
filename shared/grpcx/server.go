@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -43,10 +42,10 @@ func RunGRPC(srv *grpc.Server, port int) error {
 }
 
 // RunHTTPGateway — запускает grpc-gateway как HTTP/JSON прокси
-func RunHTTPGateway(ctx context.Context, mux *runtime.ServeMux, port int) error {
+func RunHTTPGateway(ctx context.Context, handler http.Handler, port int) error {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: mux,
+		Handler: handler,
 	}
 
 	errCh := make(chan error, 1)

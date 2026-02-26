@@ -144,3 +144,31 @@ tasks:
     deps: [install:goose]
     cmds:
       - "{{.GOOSE}} -dir {{.GOOSE_DIR}} create {{.NAME}} sql"
+
+
+
+  run:user:
+    desc: "Run user service (memory repo, no DB needed)"
+    dir: "{{.ROOT_DIR}}/services/user"
+    env:
+      SERVICE_NAME: "user"
+      ENV: "dev"
+      GRPC_PORT: "50051"
+      HTTP_PORT: "8080"
+      OTEL_ENABLED: "false"
+      # DATABASE_URL не задан → memory repo
+    cmds:
+      - go run ./cmd/api/
+
+  run:user:postgres:
+    desc: "Run user service with PostgreSQL"
+    dir: "{{.ROOT_DIR}}/services/user"
+    env:
+      SERVICE_NAME: "user"
+      ENV: "dev"
+      GRPC_PORT: "50051"
+      HTTP_PORT: "8080"
+      OTEL_ENABLED: "false"
+      DATABASE_URL: "postgres://user:password@localhost:5432/userdb?sslmode=disable"
+    cmds:
+      - go run ./cmd/api/

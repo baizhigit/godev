@@ -24,7 +24,8 @@ type Config struct {
 }
 
 type DBConfig struct {
-	URL      string `env:"URL,required"`              // → DB_URL
+	// URL      string `env:"URL,required"`              // → DB_URL
+	URL      string `env:"URL" envDefault:""`         // → DB_URL
 	MaxConns int32  `env:"MAX_CONNS" envDefault:"25"` // → DB_MAX_CONNS
 	MinConns int32  `env:"MIN_CONNS" envDefault:"5"`  // → DB_MIN_CONNS
 }
@@ -50,3 +51,4 @@ func MustLoad() Config {
 
 func (c Config) IsDev() bool  { return c.Env == "dev" }
 func (c Config) IsProd() bool { return c.Env == "prod" }
+func (c Config) HasDB() bool  { return c.DB.URL != "" }

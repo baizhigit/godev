@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,9 +19,12 @@ import (
 	userv1 "github.com/baizhigit/godev/shared/proto/gen/go/platform/user/v1"
 
 	grpcserver "github.com/baizhigit/godev/services/user/internal/adapters/grpc"
+	"github.com/baizhigit/godev/services/user/internal/adapters/httpserver"
+	"github.com/baizhigit/godev/services/user/internal/adapters/memory"
 	"github.com/baizhigit/godev/services/user/internal/adapters/postgres"
 	"github.com/baizhigit/godev/services/user/internal/app"
 	"github.com/baizhigit/godev/services/user/internal/config"
+	"github.com/baizhigit/godev/services/user/internal/ports"
 )
 
 func main() {
@@ -57,30 +61,34 @@ func main() {
 	// 	}
 	// }
 
-	// ── Database ─────────────────────────────────────────────
-	pool, err := postgres.NewPool(ctx, postgres.DBConfig{
-		URL:      cfg.DB.URL,
-		MaxConns: cfg.DB.MaxConns,
-		MinConns: cfg.DB.MinConns,
-	})
-	if err != nil {
-		slog.Error("database init failed", "err", err)
-		os.Exit(1)
+	// ── Database Repository ───────────────────────────────────────────
+	var userRepo ports.UserRepository
+
+	if cfg.HasDB() {
+		pool, err := postgres.NewPool(ctx, postgres.DBConfig{
+			URL:      cfg.DB.URL,
+			MaxConns: cfg.DB.MaxConns,
+			MinConns: cfg.DB.MinConns,
+		})
+		if err != nil {
+			slog.Error("database init failed", "err", err)
+			os.Exit(1)
+		}
+		defer pool.Close()
+
+		// ── Migrations ───────────────────────────────────────────
+		// запускаем до старта сервера — сервис не стартует с устаревшей схемой
+		if err := postgres.RunMigrations(pool); err != nil {
+			slog.Error("migrations failed", "err", err)
+			os.Exit(1)
+		}
+
+		userRepo = postgres.NewUserRepository(pool)
+		slog.Info("using postgres repository")
+	} else {
+		userRepo = memory.NewUserRepository()
+		slog.Warn("using in-memory repository — data will be lost on restart")
 	}
-	defer pool.Close()
-
-	// ── Migrations ───────────────────────────────────────────
-	// запускаем до старта сервера — сервис не стартует с устаревшей схемой
-	if err := postgres.RunMigrations(pool); err != nil {
-		slog.Error("migrations failed", "err", err)
-		os.Exit(1)
-	}
-
-	slog.Info("migrations applied")
-	slog.Info("database connected")
-
-	// ── Adapters → App ───────────────────────────────────────
-	userRepo := postgres.NewUserRepository(pool)
 
 	// ── Use cases ────────────────────────────────────────────
 	handlers := app.Handlers{
@@ -108,10 +116,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// ── HTTP router — gateway + docs ─────────────────────────
+	httpMux := http.NewServeMux()
+	httpMux.Handle("/docs", httpserver.SwaggerHandler())
+	httpMux.Handle("/swagger.json", httpserver.SwaggerHandler())
+	httpMux.Handle("/", gwMux)
+
 	// ── Graceful shutdown ────────────────────────────────────
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
+	// ── Старт серверов ───────────────────────────────────────
 	go func() {
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPC.Port))
 		if err != nil {
@@ -125,8 +140,8 @@ func main() {
 	}()
 
 	go func() {
-		slog.Info("HTTP gateway started", "port", cfg.HTTPPort)
-		if err := grpcx.RunHTTPGateway(sigCtx, gwMux, cfg.HTTPPort); err != nil {
+		slog.Info("HTTP gateway started", "port", cfg.HTTPPort, "docs", fmt.Sprintf("http://localhost:%d/docs", cfg.HTTPPort))
+		if err := grpcx.RunHTTPGateway(ctx, httpMux, cfg.HTTPPort); err != nil {
 			slog.Error("HTTP gateway failed", "err", err)
 		}
 	}()

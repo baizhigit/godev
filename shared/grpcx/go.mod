@@ -4,7 +4,6 @@ go 1.25.3
 
 require (
 	buf.build/go/protovalidate v1.1.3
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.65.0
 	go.opentelemetry.io/otel v1.40.0
 	google.golang.org/grpc v1.79.1

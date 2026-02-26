@@ -1,0 +1,30 @@
+version: v2
+clean: true
+
+plugins:
+  # Go structs
+  - remote: buf.build/protocolbuffers/go
+    out: ../shared/proto/gen/go
+    opt:
+      - paths=source_relative
+
+  # gRPC server/client
+  - remote: buf.build/grpc/go
+    out: ../shared/proto/gen/go
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false
+
+  # gRPC-Gateway (HTTP/JSON → gRPC reverse proxy)
+  - remote: buf.build/grpc-ecosystem/gateway
+    out: ../shared/proto/gen/go
+    opt:
+      - paths=source_relative
+
+  # OpenAPI v2 (swagger)
+  - remote: buf.build/grpc-ecosystem/openapiv2
+    out: ../api
+    opt:
+      - allow_merge=true
+      - merge_file_name=swagger.json
+      - json_names_for_fields=false

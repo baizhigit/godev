@@ -1,0 +1,138 @@
+version: "2"
+
+run:
+  timeout: 5m  # Максимальное время выполнения анализа
+  relative-path-mode: gomod  # Пути к файлам интерпретируются относительно корня go-модуля
+  issues-exit-code: 1  # Код выхода = 1, если найдены ошибки (полезно для CI)
+  tests: true  # Анализировать также _test.go файлы
+  modules-download-mode: readonly  # Не разрешать загрузку зависимостей во время анализа (безопасно и быстрее на CI)
+
+output: # Настройки вывода результатов линтинга
+  formats:
+    text: # Формат вывода в терминал
+      print-linter-name: true  # Показывать имя линтера рядом с каждым сообщением
+      print-issued-lines: true  # Показывать строку кода, где найдена проблема
+      colors: true  # Использовать цветной вывод (для лучшей читаемости)
+
+formatters: # Форматтеры кода (проверка стиля)
+  enable:
+    - gofumpt  # Строгая версия gofmt с дополнительными правилами
+    - gci      # Форматтер импортов (гибкая альтернатива goimports)
+  settings:
+    gofumpt:
+      extra-rules: true  # Включить дополнительные строгие правила (например, удаление лишних пустых строк)
+    gci:
+      sections: # Порядок группировки импортов
+        - Standard  # Стандартная библиотека
+        - Default   # Сторонние зависимости
+        - Prefix(github.com/baizhigit/godev/)  # Локальные импорты проекта
+      no-inline-comments: false  # Разрешить комментарии после импортов (true — запретит)
+
+linters:
+  default: none          # НЕ используем default набор — явно перечисляем
+  enable:
+    ## Корректность кода
+    - errcheck           # проверяет что все error не игнорируются
+    - errorlint          # правильное использование errors.Is/As вместо ==
+    - errname            # Проверяет имена переменных/типов ошибок (должны содержать "Err")
+    - govet              # go vet встроенный
+    - staticcheck        # мощный статический анализатор (замена megacheck)
+    - unused             # неиспользуемый код
+    - nilnil             # func не должна возвращать (nil, nil) — неоднозначно
+    - nilerr             # не возвращай nil если err != nil
+    - ineffassign        # Обнаруживает неиспользуемые присваивания
+    - unparam            # Находит неиспользуемые параметры функций
+    ## Стиль и читаемость
+    - revive             # замена golint, гибко настраивается
+    # - gci                # порядок import групп (std, external, internal)
+    - misspell           # опечатки в комментариях и строках
+    - whitespace         # лишние пустые строки
+    - wsl_v5             # whitespace linter — пустые строки между блоками
+    - asciicheck         # Предупреждает о не-ASCII символах в коде
+    - dupl               # Находит дублированные фрагменты кода
+    ## Безопасность
+    - gosec              # типичные уязвимости (G101-G601)
+    - bodyclose          # http.Response.Body всегда должен быть закрыт
+    ## Производительность
+    - prealloc           # slice preallocation где возможно
+    - makezero           # неправильное использование make со срезами
+    ## Сложность
+    - cyclop             # цикломатическая сложность
+    - funlen             # длина функции
+    - gocognit           # когнитивная сложность (лучше чем cyclomatic)
+    - nestif             # глубина вложенности if
+    ## Тесты
+    - testifylint        # правильное использование testify assertions
+    - thelper            # t.Helper() в test helper функциях
+    - tparallel          # t.Parallel() в тестах
+    ## Go идиомы
+    - godot              # точка в конце комментариев
+    - gocritic           # разные полезные проверки
+    - noctx              # http запросы должны принимать context
+    - contextcheck       # правильная передача context
+    - containedctx       # Предупреждает, если `context.Context` сохраняется в структуре (плохо)
+    - sloglint           # правильное использование slog
+
+  settings:
+    errorlint:
+      errorf: true         # проверять fmt.Errorf без %w
+      asserts: true
+      comparison: true
+
+    revive:
+      rules:
+        - name: exported                    # комментарии к экспортируемым
+        - name: var-naming                  # camelCase
+        - name: indent-error-flow          # не нужен else после return
+        - name: error-return               # error последним возвращаемым
+        - name: error-naming               # переменные ошибок: err, не e
+        - name: if-return                  # упрощение if x { return true }
+        - name: unused-parameter
+          arguments:
+            - allowRegex: "^_"             # _ параметры разрешены
+            
+    gosec:
+      excludes:
+        - G404    # weak random — мы знаем когда используем math/rand
+      config:
+        global:
+          audit: true        # Активировать все правила безопасности
+          show-ignored: true # Показывать проигнорированные проблемы в комментариях
+        severity: "medium"   # Минимальная важность проблем, high/medium/low
+        confidence: "medium" # Минимальный уровень уверенности, high/medium/low
+
+    cyclop:
+      max-complexity: 10    # функция не должна быть сложнее 10
+
+    funlen:
+      lines: 80             # функция до 80 строк
+      statements: 40
+
+    gocognit:
+      min-complexity: 15
+
+    nestif:
+      min-complexity: 4     # не более 4 уровней вложенности if
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentedOutCode  # закомментированный код иногда нужен временно
+
+    sloglint:
+      no-mixed-args: true   # не мешать slog.String() и просто строки
+      kv-only: false
+      attr-only: true       # использовать slog.Attr везде
+      no-global: "all"      # не использовать slog глобально — только через DI
+      context: "all"        # всегда передавать context в slog
+
+    testifylint:
+      enable-all: true
+
+issues:
+  max-issues-per-linter: 0    # показывать все найденные проблемы
+  max-same-issues: 0
+  uniq-by-line: true  # Отображать максимум одну ошибку на строку (избегает спама от разных линтеров по одной строке)

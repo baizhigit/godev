@@ -1,0 +1,65 @@
+version: "2"
+
+sql:
+  - engine: "postgresql"
+    queries: "queries/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "sqlc"
+        out: "sqlcgen/"
+        sql_package: "pgx/v5"
+        emit_interface: true                # генерирует Querier interface
+        emit_context_param: true            # все методы принимают context
+        emit_sql_as_comment: true           # SQL в комментарии над методом
+        emit_json_tags: true
+        emit_empty_slices: true
+        emit_all_enum_values: true
+
+        overrides:
+          # UUID → google uuid
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+
+          # nullable uuid
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true
+
+          # timestamptz → time.Time
+          - db_type: "timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+
+          # nullable timestamptz
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+
+          # timestamp without time zone
+          - db_type: "timestamp"
+            go_type:
+              import: "time"
+              type: "Time"
+
+          # nullable timestamp
+          - db_type: "timestamp"
+            nullable: true
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+
+          - db_type: "numeric"
+            go_type:
+              import: "github.com/shopspring/decimal"
+              type: "Decimal"

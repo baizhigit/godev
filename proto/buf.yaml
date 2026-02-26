@@ -1,0 +1,13 @@
+version: v2
+
+deps:
+  - buf.build/googleapis/googleapis          # google.api аннотации для gateway
+  - buf.build/bufbuild/protovalidate         # protovalidate правила
+
+lint:
+  use:
+    - STANDARD
+
+breaking:
+  use:
+    - FILE

@@ -1,0 +1,123 @@
+version: '3'
+
+# Глобальные переменные проекта
+vars:
+  GO_VERSION: '1.25.3'
+  GOLANGCI_LINT_VERSION: 'v2.10.1'
+  # GCI_VERSION: 'v0.13.7'
+  # GOFUMPT_VERSION: 'v0.9.2'
+  BUF_VERSION: '1.66.0'
+  PROTOC_GEN_GO_VERSION: 'v1.36.11'
+  PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  # GCI: '{{.BIN_DIR}}/gci'
+  # GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+  BUF: '{{.BIN_DIR}}/buf'
+  PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
+  PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
+  ENVDIR: '{{.ROOT_DIR}}/deploy/env'
+
+  SERVICES: core,user
+  GRPC_SERVER_ADDR: 'localhost:50051'
+
+tasks:
+
+  install-golangci-lint:
+    desc: "Устанавливает golangci-lint в каталог bin"
+    cmds:
+      - '[ -f {{.GOLANGCI_LINT}} ] || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b {{.BIN_DIR}} {{.GOLANGCI_LINT_VERSION}}'
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  format:
+    desc: "Форматирует весь проект через golangci-lint (gofumpt + gci)"
+    deps: [ install-golangci-lint ]
+    cmds:
+      - echo "🧼 Форматируем проект..."
+      - "{{.GOLANGCI_LINT}} fmt"
+
+  lint:
+    desc: "Lint the whole workspace or specific path"
+    deps: [ install-golangci-lint ]
+    cmds:
+      - echo "🔍 Линтим весь workspace..."
+      # ./... в корне с go.work автоматически подхватит все модули
+      # To lint one service: task lint -- services/user/...
+      - "{{.GOLANGCI_LINT}} run {{.CLI_ARGS | default \"./...\"}}"
+
+  lint:fast:
+    desc: "Линтит только измененные файлы"
+    cmds:
+      - "{{.GOLANGCI_LINT}} run --new-from-rev=HEAD~1"
+
+  lint:fix:
+    desc: "Fix lint errors and format code"
+    cmds:
+      - "{{.GOLANGCI_LINT}} fmt {{.CLI_ARGS}}"
+      - "{{.GOLANGCI_LINT}} run --fix {{.CLI_ARGS | default \"./...\"}}"
+
+  lint:check:
+    desc: "Verify .golangci.yml is valid"
+    cmds:
+      - "{{.GOLANGCI_LINT}} config verify"
+
+
+
+  install-buf:
+    desc: "Install Buf CLI"
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - '[ -f {{.BUF}} ] || GOBIN={{.BIN_DIR}} go install github.com/bufbuild/buf/cmd/buf@v{{.BUF_VERSION}}'
+    status:
+      - test -x {{.BUF}}
+
+  proto:install-plugins:
+      desc: "Installs all required protoc plugins to ./bin"
+      internal: true # Users don't need to run this manually
+      cmds:
+        - mkdir -p {{.BIN_DIR}}
+        - go install google.golang.org/protobuf/cmd/protoc-gen-go@{{.PROTOC_GEN_GO_VERSION}}
+        - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@{{.PROTOC_GEN_GO_GRPC_VERSION}}
+        - go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@{{.PROTOC_GEN_GRPC_GATEWAY_VERSION}}
+        - go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@{{.PROTOC_GEN_OPENAPIV2_VERSION}}
+        - go install github.com/envoyproxy/protoc-gen-validate@{{.PROTOC_GEN_VALIDATE_VERSION}}
+      # Using 'status' lets Task skip this if the files already exist
+      status:
+        - test -f {{.BIN_DIR}}/protoc-gen-go
+        - test -f {{.BIN_DIR}}/protoc-gen-go-grpc
+        - test -f {{.BIN_DIR}}/protoc-gen-grpc-gateway
+        - test -f {{.BIN_DIR}}/protoc-gen-validate
+        - test -f {{.BIN_DIR}}/protoc-gen-openapiv2
+
+  proto:gen:
+      desc: "Generate Go code and OpenAPI specs from .proto"
+      deps: [ install-buf ]
+      dir: "{{.ROOT_DIR}}/proto"
+      cmds:
+        - echo "🔍 Linting..."
+        - "{{.BUF}} lint"
+        - echo "🛠 Generating..."
+        - "{{.BUF}} dep update"   # синхронизировать buf.lock
+        - "{{.BUF}} generate"
+        - echo "✅ Done. Check shared/gen/go/ and api/"
+
+  proto:update:
+    desc: "Update buf.lock (run after changing deps in buf.yaml)"
+    dir: "{{.ROOT_DIR}}/proto"
+    cmds:
+      - "{{.BUF}} dep update"
+
+  proto:breaking:
+    desc: "Check for breaking changes against main"
+    deps: [install-buf]
+    dir: "{{.ROOT_DIR}}/proto"
+    cmds:
+      - "{{.BUF}} breaking --against '../.git#branch=main,subdir=proto'"
+
+  proto:lint:
+    deps: [install-buf]
+    dir: "{{.ROOT_DIR}}/proto"
+    cmds:
+      - "{{.BUF}} lint"

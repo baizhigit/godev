@@ -8,14 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/baizhigit/godev/shared/grpcx"
-	"github.com/baizhigit/godev/shared/observability"
+	// "github.com/baizhigit/godev/shared/observability"
 	userv1 "github.com/baizhigit/godev/shared/proto/gen/go/platform/user/v1"
 
 	grpcserver "github.com/baizhigit/godev/services/user/internal/adapters/grpc"
@@ -44,19 +43,19 @@ func main() {
 	// ── Observability ────────────────────────────────────────
 	ctx := context.Background()
 
-	var shutdownOtel func(context.Context) error
-	if cfg.OTEL.Enabled {
-		var err error
-		shutdownOtel, err = observability.Setup(ctx, observability.Config{
-			ServiceName: cfg.ServiceName,
-			Version:     cfg.Version,
-			Endpoint:    cfg.OTEL.Endpoint,
-		})
-		if err != nil {
-			slog.Error("observability setup failed", "err", err)
-			os.Exit(1)
-		}
-	}
+	// var shutdownOtel func(context.Context) error
+	// if cfg.OTEL.Enabled {
+	// 	var err error
+	// 	shutdownOtel, err = observability.Setup(ctx, observability.Config{
+	// 		ServiceName: cfg.ServiceName,
+	// 		Version:     cfg.Version,
+	// 		Endpoint:    cfg.OTEL.Endpoint,
+	// 	})
+	// 	if err != nil {
+	// 		slog.Error("observability setup failed", "err", err)
+	// 		os.Exit(1)
+	// 	}
+	// }
 
 	// ── Database ─────────────────────────────────────────────
 	pool, err := postgres.NewPool(ctx, postgres.DBConfig{
@@ -70,6 +69,14 @@ func main() {
 	}
 	defer pool.Close()
 
+	// ── Migrations ───────────────────────────────────────────
+	// запускаем до старта сервера — сервис не стартует с устаревшей схемой
+	if err := postgres.RunMigrations(pool); err != nil {
+		slog.Error("migrations failed", "err", err)
+		os.Exit(1)
+	}
+
+	slog.Info("migrations applied")
 	slog.Info("database connected")
 
 	// ── Adapters → App ───────────────────────────────────────
@@ -132,13 +139,13 @@ func main() {
 	grpcServer.GracefulStop()
 	slog.Info("gRPC server stopped")
 
-	if shutdownOtel != nil {
-		otelCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		if err := shutdownOtel(otelCtx); err != nil {
-			slog.Error("otel shutdown failed", "err", err)
-		}
-	}
+	// if shutdownOtel != nil {
+	// 	otelCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// 	defer cancel()
+	// 	if err := shutdownOtel(otelCtx); err != nil {
+	// 		slog.Error("otel shutdown failed", "err", err)
+	// 	}
+	// }
 
 	slog.Info("service stopped")
 }

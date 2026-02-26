@@ -10,7 +10,6 @@ sql:
         out: "sqlcgen/"
         sql_package: "pgx/v5"
         emit_interface: true                # генерирует Querier interface
-        emit_context_param: true            # все методы принимают context
         emit_sql_as_comment: true           # SQL в комментарии над методом
         emit_json_tags: true
         emit_empty_slices: true

@@ -3,6 +3,7 @@ package grpcx
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// NewServer — создаёт gRPC сервер с единым набором interceptors
 func NewServer(opts ...grpc.ServerOption) *grpc.Server {
 	defaults := []grpc.ServerOption{
 		UnaryInterceptors(),
@@ -22,26 +22,37 @@ func NewServer(opts ...grpc.ServerOption) *grpc.Server {
 	return grpc.NewServer(append(defaults, opts...)...)
 }
 
-// RunGRPC — запускает gRPC сервер, блокирует до ошибки
-func RunGRPC(srv *grpc.Server, port int) error {
+// RunGRPC — принимает ctx для graceful shutdown
+func RunGRPC(ctx context.Context, srv *grpc.Server, port int) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return fmt.Errorf("grpcx: listen: %w", err)
 	}
 
-	// reflection — позволяет grpcurl и Postman видеть методы без .proto файла
-	// только для не-prod окружений, но в монорепо удобно всегда
-	reflection.Register(srv)
-
-	// стандартный health check (используется k8s livenessProbe через grpc)
+	// health check — до reflection
 	healthSrv := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(srv, healthSrv)
 	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
-	return srv.Serve(lis)
+	// reflection — после всех RegisterXxxServer вызовов
+	reflection.Register(srv)
+
+	slog.Info("gRPC server started", "port", port)
+
+	// слушаем ctx для graceful shutdown
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Serve(lis) }()
+
+	select {
+	case err := <-errCh:
+		return fmt.Errorf("grpcx: serve: %w", err)
+	case <-ctx.Done():
+		slog.Info("gRPC graceful stop...")
+		srv.GracefulStop()
+		return nil
+	}
 }
 
-// RunHTTPGateway — запускает grpc-gateway как HTTP/JSON прокси
 func RunHTTPGateway(ctx context.Context, handler http.Handler, port int) error {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),

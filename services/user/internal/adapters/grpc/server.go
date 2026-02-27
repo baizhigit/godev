@@ -29,10 +29,39 @@ func (s *Server) CreateUser(ctx context.Context, req *userv1.CreateUserRequest) 
 	return &userv1.CreateUserResponse{User: toProto(user)}, nil
 }
 
+func (s *Server) GetUser(ctx context.Context, req *userv1.GetUserRequest) (*userv1.GetUserResponse, error) {
+	user, err := s.h.GetUser.Handle(ctx, app.GetUserQuery{
+		ID: req.Id,
+	})
+	if err != nil {
+		return nil, toGRPCError(err)
+	}
+	return &userv1.GetUserResponse{User: toProto(user)}, nil
+}
+
+func (s *Server) ListUsers(ctx context.Context, req *userv1.ListUsersRequest) (*userv1.ListUsersResponse, error) {
+	result, err := s.h.ListUsers.Handle(ctx, app.ListUsersQuery{
+		PageSize:  int(req.PageSize),
+		PageToken: req.PageToken,
+	})
+	if err != nil {
+		return nil, toGRPCError(err)
+	}
+
+	users := make([]*userv1.User, len(result.Users))
+	for i, u := range result.Users {
+		users[i] = toProto(u)
+	}
+
+	return &userv1.ListUsersResponse{
+		Users:         users,
+		NextPageToken: result.NextPageToken,
+	}, nil
+}
+
 func (s *Server) UpdateUser(ctx context.Context, req *userv1.UpdateUserRequest) (*userv1.UpdateUserResponse, error) {
-	// разбираем FieldMask — обновляем только указанные поля
 	fields := domain.UpdateFields{}
-	for _, path := range req.UpdateMask.GetPaths() {
+	for _, path := range req.GetUpdateMask().GetPaths() {
 		switch path {
 		case "first_name":
 			fields.FirstName = &req.FirstName

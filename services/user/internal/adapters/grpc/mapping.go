@@ -1,8 +1,6 @@
 package grpc
 
 import (
-	"errors"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -24,17 +22,9 @@ func toProto(u domain.User) *userv1.User {
 }
 
 func toGRPCError(err error) error {
-	var e *errx.Error
-	if !errors.As(err, &e) {
+	e, ok := errx.As(err)
+	if !ok {
 		return status.Error(codes.Internal, "internal error")
 	}
-
-	code := map[int]codes.Code{
-		400: codes.InvalidArgument,
-		404: codes.NotFound,
-		409: codes.AlreadyExists,
-		500: codes.Internal,
-	}[e.Status]
-
-	return status.Error(code, e.Message)
+	return status.Error(errx.ToGRPCCode(e), e.Message)
 }

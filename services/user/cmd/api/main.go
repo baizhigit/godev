@@ -14,10 +14,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/baizhigit/godev/shared/grpcx"
-	// "github.com/baizhigit/godev/shared/observability"
-	userv1 "github.com/baizhigit/godev/shared/proto/gen/go/platform/user/v1"
-
 	grpcserver "github.com/baizhigit/godev/services/user/internal/adapters/grpc"
 	"github.com/baizhigit/godev/services/user/internal/adapters/httpserver"
 	"github.com/baizhigit/godev/services/user/internal/adapters/memory"
@@ -25,6 +21,9 @@ import (
 	"github.com/baizhigit/godev/services/user/internal/app"
 	"github.com/baizhigit/godev/services/user/internal/config"
 	"github.com/baizhigit/godev/services/user/internal/ports"
+	"github.com/baizhigit/godev/shared/grpcx"
+	// "github.com/baizhigit/godev/shared/observability"
+	userv1 "github.com/baizhigit/godev/shared/proto/gen/go/platform/user/v1"
 )
 
 func main() {

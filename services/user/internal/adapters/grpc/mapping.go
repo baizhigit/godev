@@ -3,12 +3,13 @@ package grpc
 import (
 	"errors"
 
-	"github.com/baizhigit/godev/services/user/internal/domain"
-	"github.com/baizhigit/godev/shared/errx"
-	userv1 "github.com/baizhigit/godev/shared/proto/gen/go/platform/user/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/baizhigit/godev/services/user/internal/domain"
+	"github.com/baizhigit/godev/shared/errx"
+	userv1 "github.com/baizhigit/godev/shared/proto/gen/go/platform/user/v1"
 )
 
 func toProto(u domain.User) *userv1.User {

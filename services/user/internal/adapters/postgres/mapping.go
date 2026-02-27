@@ -5,9 +5,10 @@ import (
 	"encoding/base64"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"github.com/baizhigit/godev/services/user/internal/adapters/postgres/sqlcgen"
 	"github.com/baizhigit/godev/services/user/internal/domain"
-	"github.com/google/uuid"
 )
 
 // sqlcgen → domain

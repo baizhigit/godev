@@ -5,9 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/baizhigit/godev/services/user/internal/domain"
 	"github.com/baizhigit/godev/services/user/internal/ports"
-	"github.com/google/uuid"
 )
 
 type CreateUserCommand struct {
